@@ -50,5 +50,53 @@ impl Register {
     }
 }
 
+/*
+pub enum OperatingMode {
+    HighPerformanceMode = 0x00,
+    LowPowerMode4 = 0x01,
+    LowPowerMode3 = 0x02,
+    LowPowerMode2 = 0x03,
+    LowPowerMode1 = 0x04,
+}
+
+pub enum LowNoise {
+    Disabled = 0x00,
+    Enabled = 0x01,
+}*/
+
+#[allow(non_camel_case_types)]
+pub enum OutputDataRate {
+    PowerDown = 0x00,        // power down
+    Hp12Hz5_Lp1Hz6 = 0x01,   // High-Performance 12.5Hz / Low-Power 1.6 Hz
+    Hp12Hz5_Lp12Hz5 = 0x02,  // High-Performance 12.5 Hz / Low-Power mode 12.5 Hz
+    Hp25Hz_Lp25Hz = 0x03,    // High-Performance 25 Hz / Low-Power 25 Hz
+    Hp50Hz_Lp50Hz = 0x04,    // High-Performance 50 Hz / Low-Power 50 Hz
+    Hp100Hz_Lp100Hz = 0x05,  // High-Performance 100 Hz / Low-Power mode 100 Hz
+    Hp200Hz_Lp200Hz = 0x06,  // High-Performance 200 Hz / Low-Power mode 200 Hz
+    Hp400Hz_Lp200Hz = 0x07,  // High-Performance 400 Hz / Low-Power mode 200 Hz
+    Hp800Hz_Lp200Hz = 0x08,  // High-Performance 800 Hz / Low-Power mode 200 Hz
+    Hp1600Hz_Lp200Hz = 0x09, // High-Performance 1600 Hz / Low-Power mode 200 Hz
+}
+
+pub enum OperatingMode {
+    LowPower = 0x00,        // Low-Power Mode (12/14-bit resolution)
+    HighPerformance = 0x01, // High-Performance Mode (14-bit resolution)
+    SingleOnDemand = 0x02,  // Single data conversion on demand mode (12/14-bit resolution)
+}
+
+pub enum LowPowerMode {
+    Mode1 = 0x00, // Low-Power Mode 1 (12-bit resolution)
+    Mode2 = 0x01, // Low-Power Mode 2 (14-bit resolution)
+    Mode3 = 0x02, // Low-Power Mode 3 (14-bit resolution)
+    Mode4 = 0x03, // Low-Power Mode 4 (14-bit resolution)
+}
+
+pub enum FullScaleSelection {
+    PlusMinus2 = 0x00,
+    PlusMinus4 = 0x01,
+    PlusMinus8 = 0x02,
+    PlusMinus16 = 0x03,
+}
+
 /// WHO_AM_I device identification register
-pub const DEVICE_ID: u8 = 0b0100_0100; // 0x44 or 68
+pub const DEVICE_ID: u8 = 0b0100_0100; // 0x44 or 68 (decimal)

@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate rtt_target;
 
-use accelerometer_test::LIS2DW12;
+use accelerometer_test::{FullScaleSelection, OperatingMode, LIS2DW12};
 use cortex_m::asm;
 use cortex_m_rt::entry;
 use embedded_hal::{digital::v2::OutputPin, spi::Mode, spi::Phase, spi::Polarity};
@@ -92,12 +92,21 @@ fn main() -> ! {
     delay.delay_ms(5_u16);
     rprintln!("[INF] Done initialising");
 
-    let mut lis2dw12 = LIS2DW12::new(cs);
+    let mut lis2dw12 = LIS2DW12::new(cs).unwrap();
 
     let who_am_i = lis2dw12.get_device_id(&mut spi).unwrap();
     rprintln!("Who Am I: {}", who_am_i);
 
+    lis2dw12.set_mode(&mut spi, OperatingMode::HighPerformance);
+    lis2dw12.set_low_noise(&mut spi, true);
+    lis2dw12.set_full_scale_selection(&mut spi, FullScaleSelection::PlusMinus2);
+    lis2dw12.set_output_data_rate(
+        &mut spi,
+        accelerometer_test::OutputDataRate::Hp100Hz_Lp100Hz,
+    );
     loop {
-        asm::nop()
+        let raw = lis2dw12.get_raw(&mut spi).unwrap();
+        rprintln!("raw: {:?}", raw);
+        delay.delay_ms(100_u16);
     }
 }
