@@ -44,25 +44,10 @@ pub enum Register {
 }
 
 impl Register {
-    /// Get register address
     pub fn addr(self) -> u8 {
         self as u8
     }
 }
-
-/*
-pub enum OperatingMode {
-    HighPerformanceMode = 0x00,
-    LowPowerMode4 = 0x01,
-    LowPowerMode3 = 0x02,
-    LowPowerMode2 = 0x03,
-    LowPowerMode1 = 0x04,
-}
-
-pub enum LowNoise {
-    Disabled = 0x00,
-    Enabled = 0x01,
-}*/
 
 #[allow(non_camel_case_types)]
 pub enum OutputDataRate {

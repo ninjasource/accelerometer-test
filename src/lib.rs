@@ -5,19 +5,19 @@ use accelerometer::{vector::I16x3, RawAccelerometer};
 use embedded_hal::blocking::spi::Transfer;
 use embedded_hal::digital::v2::OutputPin;
 mod reg;
+pub use crate::reg::*;
 use core::fmt::Debug;
 
-pub use crate::reg::*;
-
 #[derive(Debug)]
-pub enum Lis2dw12Error<SpiError, PinError> {
+pub enum Error<SpiError, PinError> {
     /// SPI communication error
     Spi(SpiError),
     /// CS output pin error
     Pin(PinError),
+    InvalidWhoAmI(u8),
 }
 
-impl<SpiError, PinError> From<SpiError> for Lis2dw12Error<SpiError, PinError> {
+impl<SpiError, PinError> From<SpiError> for Error<SpiError, PinError> {
     fn from(err: SpiError) -> Self {
         Self::Spi(err)
     }
@@ -33,25 +33,30 @@ where
     SPI: Transfer<u8, Error = SpiError>,
     CS: OutputPin<Error = PinError>,
 {
-    pub fn new(spi: SPI, mut cs: CS) -> Result<Self, Lis2dw12Error<SpiError, PinError>> {
-        cs.set_high().map_err(Lis2dw12Error::Pin)?;
-        Ok(Self { cs, spi })
+    pub fn new(spi: SPI, cs: CS) -> Self {
+        Self { spi, cs }
+    }
+
+    pub fn check_who_am_i(&mut self) -> Result<(), Error<SpiError, PinError>> {
+        self.cs.set_high().map_err(Error::Pin)?;
+        let device_id = self.get_device_id()?;
+        if device_id != reg::DEVICE_ID {
+            return Err(Error::InvalidWhoAmI(device_id));
+        }
+        Ok(())
     }
 
     pub fn set_low_power_mode(
         &mut self,
         low_power_mode: LowPowerMode,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    ) -> Result<(), Error<SpiError, PinError>> {
         let reset_bits = 0b0000_0011;
         self.reg_reset_bits(Register::CTRL1, reset_bits)?;
         self.reg_set_bits(Register::CTRL1, low_power_mode as u8)?;
         Ok(())
     }
 
-    pub fn set_mode(
-        &mut self,
-        mode: OperatingMode,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    pub fn set_mode(&mut self, mode: OperatingMode) -> Result<(), Error<SpiError, PinError>> {
         let reset_bits = 0b0000_1100;
         let set_bits = (mode as u8) << 2;
         self.reg_reset_bits(Register::CTRL1, reset_bits)?;
@@ -59,10 +64,7 @@ where
         Ok(())
     }
 
-    pub fn set_low_noise(
-        &mut self,
-        is_enabled: bool,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    pub fn set_low_noise(&mut self, is_enabled: bool) -> Result<(), Error<SpiError, PinError>> {
         let bits = 0b0000_0100;
         if is_enabled {
             self.reg_set_bits(Register::CTRL1, bits)?;
@@ -76,7 +78,7 @@ where
     pub fn set_full_scale_selection(
         &mut self,
         full_scale_selection: FullScaleSelection,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    ) -> Result<(), Error<SpiError, PinError>> {
         let reset_bits = 0b0011_0000;
         let set_bits = (full_scale_selection as u8) << 4;
         self.reg_reset_bits(Register::CTRL1, reset_bits)?;
@@ -87,7 +89,7 @@ where
     pub fn set_output_data_rate(
         &mut self,
         odr: OutputDataRate,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    ) -> Result<(), Error<SpiError, PinError>> {
         let reset_bits = 0b1111_0000;
         let set_bits = (odr as u8) << 4;
         self.reg_reset_bits(Register::CTRL1, reset_bits)?;
@@ -95,19 +97,11 @@ where
         Ok(())
     }
 
-    pub fn get_device_id(&mut self) -> Result<u8, Lis2dw12Error<SpiError, PinError>> {
+    pub fn get_device_id(&mut self) -> Result<u8, Error<SpiError, PinError>> {
         self.read_reg(Register::WHO_AM_I)
     }
 
-    /*
-    pub fn get_sixd<E>(
-        &mut self,
-        spi: &mut impl Transfer<u8, Error = E>,
-    ) -> Result<(), Error<E, PinError>> {
-        self.read_reg(spi, Register::SIXD_SRC)
-    }*/
-
-    pub fn get_raw(&mut self) -> Result<I16x3, Lis2dw12Error<SpiError, PinError>> {
+    pub fn get_raw(&mut self) -> Result<I16x3, Error<SpiError, PinError>> {
         let mut buf = [0u8; 6];
         self.read_regs(Register::OUT_X_L, &mut buf)?;
 
@@ -122,12 +116,12 @@ where
         &mut self,
         register: Register,
         buf: &mut [u8],
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    ) -> Result<(), Error<SpiError, PinError>> {
         // this flag allows us to call read multiple times and the register will automatically be incremented
         const IF_ADD_INC: u8 = 0b0000_0100;
         self.reg_set_bits(Register::CTRL2, IF_ADD_INC)?;
 
-        self.chip_select().map_err(Lis2dw12Error::Pin)?;
+        self.chip_select().map_err(Error::Pin)?;
         let request = 0b1000_0000 | register.addr(); // set the read bit
 
         let result = self.write(request).and_then(|_| {
@@ -138,32 +132,20 @@ where
             Ok(())
         });
 
-        self.chip_deselect().map_err(Lis2dw12Error::Pin)?;
+        self.chip_deselect().map_err(Error::Pin)?;
         self.reg_reset_bits(Register::CTRL2, IF_ADD_INC)?;
         result
     }
 
-    fn reg_set_bits(
-        &mut self,
-        reg: Register,
-        bits: u8,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    fn reg_set_bits(&mut self, reg: Register, bits: u8) -> Result<(), Error<SpiError, PinError>> {
         self.modify_reg(reg, |v| v | bits)
     }
 
-    fn reg_reset_bits(
-        &mut self,
-        reg: Register,
-        bits: u8,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    fn reg_reset_bits(&mut self, reg: Register, bits: u8) -> Result<(), Error<SpiError, PinError>> {
         self.modify_reg(reg, |v| v & !bits)
     }
 
-    fn modify_reg<F>(
-        &mut self,
-        reg: Register,
-        f: F,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>>
+    fn modify_reg<F>(&mut self, reg: Register, f: F) -> Result<(), Error<SpiError, PinError>>
     where
         F: FnOnce(u8) -> u8,
     {
@@ -172,32 +154,28 @@ where
         Ok(())
     }
 
-    fn write_reg(
-        &mut self,
-        register: Register,
-        data: u8,
-    ) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
-        self.chip_select().map_err(Lis2dw12Error::Pin)?;
+    fn write_reg(&mut self, register: Register, data: u8) -> Result<(), Error<SpiError, PinError>> {
+        self.chip_select().map_err(Error::Pin)?;
         let result = self.write(register.addr()).and_then(|_| self.write(data));
-        self.chip_deselect().map_err(Lis2dw12Error::Pin)?;
+        self.chip_deselect().map_err(Error::Pin)?;
         result?;
         Ok(())
     }
 
-    fn read_reg(&mut self, register: Register) -> Result<u8, Lis2dw12Error<SpiError, PinError>> {
-        self.chip_select().map_err(Lis2dw12Error::Pin)?;
+    fn read_reg(&mut self, register: Register) -> Result<u8, Error<SpiError, PinError>> {
+        self.chip_select().map_err(Error::Pin)?;
         let request = 0b1000_0000 | register.addr(); // set the read bit
         let result = self.write(request).and_then(|_| self.read());
-        self.chip_deselect().map_err(Lis2dw12Error::Pin)?;
-        Ok(result?)
+        self.chip_deselect().map_err(Error::Pin)?;
+        result
     }
 
-    fn write(&mut self, byte: u8) -> Result<(), Lis2dw12Error<SpiError, PinError>> {
+    fn write(&mut self, byte: u8) -> Result<(), Error<SpiError, PinError>> {
         self.spi.transfer(&mut [byte])?;
         Ok(())
     }
 
-    fn read(&mut self) -> Result<u8, Lis2dw12Error<SpiError, PinError>> {
+    fn read(&mut self) -> Result<u8, Error<SpiError, PinError>> {
         let result = self.spi.transfer(&mut [0x00])?[0];
         Ok(result)
     }
@@ -218,7 +196,7 @@ where
     SpiError: Debug,
     PinError: Debug,
 {
-    type Error = Lis2dw12Error<SpiError, PinError>;
+    type Error = Error<SpiError, PinError>;
 
     /// Get acceleration reading from the accelerometer
     fn accel_raw(&mut self) -> Result<I16x3, accelerometer::Error<Self::Error>> {
