@@ -5,7 +5,12 @@
 #[macro_use]
 extern crate rtt_target;
 
-use accelerometer_test::{FullScaleSelection, OperatingMode, LIS2DW12};
+use core::{convert::Infallible, fmt::Debug};
+
+use accelerometer::{vector::I16x3, Error, RawAccelerometer};
+use embedded_hal::blocking::spi::Transfer;
+
+use accelerometer_test::{FullScaleSelection, Lis2dw12, Lis2dw12Error, OperatingMode};
 use cortex_m::asm;
 use cortex_m_rt::entry;
 use embedded_hal::{digital::v2::OutputPin, spi::Mode, spi::Phase, spi::Polarity};
@@ -13,8 +18,8 @@ use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::{
     delay::Delay,
     gpio::{
-        gpioa::{PA5, PA6, PA7},
-        gpiob, Alternate, Floating, Input, PushPull,
+        gpioa::{PA4, PA5, PA6, PA7},
+        gpiob, Alternate, Floating, Input, Output, PushPull,
     },
     i2c::{BlockingI2c, DutyCycle, I2c},
     pac::SPI1,
@@ -28,6 +33,40 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     rprintln!("{}", info);
     loop {
         asm::bkpt() // halt = exit probe-run
+    }
+}
+
+type SpiPhysical = Spi<
+    SPI1,
+    Spi1NoRemap,
+    (
+        PA5<Alternate<PushPull>>,
+        PA6<Input<Floating>>,
+        PA7<Alternate<PushPull>>,
+    ),
+    u8,
+>;
+
+type CsPhysical = PA4<Output<PushPull>>;
+type Accelerometer = Lis2dw12<SpiPhysical, CsPhysical>;
+type AccelerometerError = Lis2dw12Error<stm32f1xx_hal::spi::Error, Infallible>;
+type RawAccelerometerError =
+    accelerometer::Error<<Accelerometer as RawAccelerometer<I16x3>>::Error>;
+
+#[derive(Debug)]
+enum MainError {
+    Accelerometer(AccelerometerError),
+}
+
+impl From<AccelerometerError> for MainError {
+    fn from(err: AccelerometerError) -> Self {
+        Self::Accelerometer(err)
+    }
+}
+
+impl From<RawAccelerometerError> for MainError {
+    fn from(err: RawAccelerometerError) -> Self {
+        MainError::Accelerometer(err.into_cause())
     }
 }
 
@@ -92,20 +131,31 @@ fn main() -> ! {
     delay.delay_ms(5_u16);
     rprintln!("[INF] Done initialising");
 
-    let mut lis2dw12 = LIS2DW12::new(cs).unwrap();
+    run(spi, cs, delay).unwrap();
 
-    let who_am_i = lis2dw12.get_device_id(&mut spi).unwrap();
+    loop {
+        asm::nop()
+    }
+}
+
+fn run(spi: SpiPhysical, cs: CsPhysical, mut delay: Delay) -> Result<(), MainError> {
+    let mut lis2dw12 = Lis2dw12::new(spi, cs)?;
+
+    let who_am_i = lis2dw12.get_device_id()?;
     rprintln!("Who Am I: {}", who_am_i);
 
-    lis2dw12.set_mode(&mut spi, OperatingMode::HighPerformance);
-    lis2dw12.set_low_noise(&mut spi, true);
-    lis2dw12.set_full_scale_selection(&mut spi, FullScaleSelection::PlusMinus2);
-    lis2dw12.set_output_data_rate(
-        &mut spi,
-        accelerometer_test::OutputDataRate::Hp100Hz_Lp100Hz,
-    );
+    lis2dw12.set_mode(OperatingMode::HighPerformance)?;
+    lis2dw12.set_low_noise(true)?;
+    lis2dw12.set_full_scale_selection(FullScaleSelection::PlusMinus2)?;
+    lis2dw12.set_output_data_rate(accelerometer_test::OutputDataRate::Hp100Hz_Lp100Hz)?;
+
+    run_loop(lis2dw12, delay)?;
+    Ok(())
+}
+
+fn run_loop(mut accel: Accelerometer, mut delay: Delay) -> Result<(), MainError> {
     loop {
-        let raw = lis2dw12.get_raw(&mut spi).unwrap();
+        let raw = accel.accel_raw()?;
         rprintln!("raw: {:?}", raw);
         delay.delay_ms(100_u16);
     }
