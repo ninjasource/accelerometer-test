@@ -2,12 +2,12 @@
 #![no_main]
 
 extern crate rtt_target;
-use accelerometer::{vector::I16x3, RawAccelerometer};
-use accelerometer_test::{FullScaleSelection, Lis2dw12, OperatingMode};
+use accelerometer::{vector::I16x3, Accelerometer, RawAccelerometer};
 use core::{convert::Infallible, fmt::Debug};
 use cortex_m::asm;
 use cortex_m_rt::entry;
 use embedded_hal::{digital::v2::OutputPin, spi::Mode, spi::Phase, spi::Polarity};
+use lis2dw12::{FullScaleSelection, Lis2dw12, OperatingMode, OutputDataRate};
 use rtt_target::{rprintln, rtt_init_print};
 use stm32f1xx_hal::{
     delay::Delay,
@@ -41,18 +41,18 @@ type SpiPhysical = Spi<
 >;
 
 type CsPhysical = PA4<Output<PushPull>>;
-type Accelerometer = Lis2dw12<SpiPhysical, CsPhysical>;
-type AccelerometerError = accelerometer_test::Error<stm32f1xx_hal::spi::Error, Infallible>;
+type Lis2dw12Physical = Lis2dw12<SpiPhysical, CsPhysical>;
+type Lis2dw12Error = lis2dw12::Error<stm32f1xx_hal::spi::Error, Infallible>;
 type RawAccelerometerError =
-    accelerometer::Error<<Accelerometer as RawAccelerometer<I16x3>>::Error>;
+    accelerometer::Error<<Lis2dw12Physical as RawAccelerometer<I16x3>>::Error>;
 
 #[derive(Debug)]
 enum MainError {
-    Accelerometer(AccelerometerError),
+    Accelerometer(Lis2dw12Error),
 }
 
-impl From<AccelerometerError> for MainError {
-    fn from(err: AccelerometerError) -> Self {
+impl From<Lis2dw12Error> for MainError {
+    fn from(err: Lis2dw12Error) -> Self {
         Self::Accelerometer(err)
     }
 }
@@ -111,20 +111,29 @@ fn main() -> ! {
     }
 }
 
-fn run(accel: &mut Accelerometer, delay: &mut Delay) -> Result<(), MainError> {
+fn run(accel: &mut Lis2dw12Physical, delay: &mut Delay) -> Result<(), MainError> {
     accel.check_who_am_i()?;
-    accel.set_mode(OperatingMode::HighPerformance)?;
+    accel.set_operating_mode(OperatingMode::HighPerformance)?;
     accel.set_low_noise(true)?;
-    accel.set_full_scale_selection(FullScaleSelection::PlusMinus2)?;
-    accel.set_output_data_rate(accelerometer_test::OutputDataRate::Hp100Hz_Lp100Hz)?;
+    accel.set_full_scale_selection(FullScaleSelection::PlusMinus2G)?;
+    accel.set_output_data_rate(OutputDataRate::Hp100HzLp100Hz)?; // 100 Hz
     run_loop(accel, delay)?;
     Ok(())
 }
 
-fn run_loop(accel: &mut Accelerometer, delay: &mut Delay) -> Result<(), MainError> {
+fn run_loop(accel: &mut Lis2dw12Physical, delay: &mut Delay) -> Result<(), MainError> {
     loop {
         let raw = accel.accel_raw()?;
-        rprintln!("raw: {:?}", raw);
+        let norm = accel.accel_norm()?;
+        let sample_rate = accel.sample_rate()?;
+        rprintln!(
+            "norm: ({:.2}, {:.2}, {:.2}), sample_rate_hz: {}, raw: {:?}",
+            norm.x,
+            norm.y,
+            norm.z,
+            sample_rate,
+            raw,
+        );
         delay.delay_ms(100_u16);
     }
 }
