@@ -11,7 +11,7 @@ dependencies = [
 
 [[package]]
 name = "accelerometer-test"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "accelerometer",
  "cortex-m 0.7.2",
@@ -168,9 +168,9 @@ dependencies = [
 
 [[package]]
 name = "lis2dw12"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52961aa1a28f959b6efd52b680d8165012c3702eb440bb9d65f0aba2871997f"
+checksum = "c59557eb09b0527107071755b0b081402446b0b1224044148862c341fe8d043d"
 dependencies = [
  "accelerometer",
  "cast",

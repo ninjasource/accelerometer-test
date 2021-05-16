@@ -38,17 +38,18 @@ cargo run
 You should see output like this:
 ```
 bla@blabla:~/source/accelerometer-test$ cargo run
-    Finished dev [optimized + debuginfo] target(s) in 0.02s
+   Compiling accelerometer-test v0.1.1 (/home/bla/source/accelerometer-test)
+    Finished dev [optimized + debuginfo] target(s) in 0.39s
      Running `probe-run --chip STM32F103CB target/thumbv7m-none-eabi/debug/accelerometer-test`
-  (HOST) INFO  flashing program (47.65 KiB)
+  (HOST) INFO  flashing program (47.59 KiB)
   (HOST) INFO  success!
 ────────────────────────────────────────────────────────────────────────────────
 [INF] Initializing
 [INF] Done initialising
-norm: (0.10, -0.14, 3.89), sample_rate_hz: 100, raw: I16x3 { x: 396, y: -552, z: 15568 }
-norm: (0.09, -0.14, 3.90), sample_rate_hz: 100, raw: I16x3 { x: 376, y: -544, z: 15592 }
-norm: (0.10, -0.13, 3.89), sample_rate_hz: 100, raw: I16x3 { x: 396, y: -532, z: 15572 }
-norm: (0.10, -0.14, 3.90), sample_rate_hz: 100, raw: I16x3 { x: 400, y: -552, z: 15600 }
-norm: (0.11, -0.14, 3.90), sample_rate_hz: 100, raw: I16x3 { x: 424, y: -564, z: 15584 }
-norm: (0.10, -0.14, 3.89), sample_rate_hz: 100, raw: I16x3 { x: 416, y: -564, z: 15560 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 372, y: -524, z: 15528 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 372, y: -512, z: 15532 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 388, y: -520, z: 15556 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 372, y: -528, z: 15536 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 380, y: -520, z: 15528 }
+norm: (0.02, -0.03, 0.95), sample_rate_hz: 100, raw: I16x3 { x: 352, y: -524, z: 15516 }
 ```
